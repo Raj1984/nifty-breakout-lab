@@ -1,0 +1,51 @@
+# ── Large data files (do NOT commit) ──────────────────────
+data/*.csv
+data/*.xlsx
+data/*.xls
+!data/sample/          # Keep the sample folder
+!data/README.md        # Keep the data readme
+
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ── Virtual environments ──────────────────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── IDE / OS ──────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs (auto-generated) ─────────────────────────────────
+logs/
+*.log
+*.jsonl
+
+# ── Jupyter ───────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Streamlit cache ───────────────────────────────────────
+.streamlit/secrets.toml
+
+# ── Secrets / API keys ───────────────────────────────────
+.env
+secrets.py
+config_local.py
+api_keys.py
+access_token.txt

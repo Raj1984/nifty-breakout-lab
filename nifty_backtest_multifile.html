@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIFTY Breakout Lab — Multi-Stock Backtest System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Bebas+Neue&family=Barlow:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg:         #07090f;
+  --surface:    #0d1117;
+  --surface2:   #161b24;
+  --surface3:   #1c2333;
+  --border:     #21293d;
+  --border2:    #2d3a52;
+  --accent:     #58a6ff;
+  --accent2:    #1f6feb;
+  --green:      #3fb950;
+  --green2:     #238636;
+  --red:        #f85149;
+  --yellow:     #d29922;
+  --orange:     #db6d28;
+  --purple:     #bc8cff;
+  --text:       #8b949e;
+  --text2:      #c9d1d9;
+  --text3:      #e6edf3;
+  --glow-blue:  rgba(88,166,255,0.12);
+  --glow-green: rgba(63,185,80,0.12);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text2);
+  font-family: 'Barlow', sans-serif;
+  font-size: 14px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── HEADER ── */
+.hdr {
+  background: linear-gradient(180deg, #0d1117 0%, #07090f 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 54px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top:0; z-index:200;
+  backdrop-filter: blur(10px);
+}
+.hdr-brand { display: flex; align-items: center; gap: 10px; }
+.hdr-logo {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 22px; letter-spacing: 2px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hdr-ver {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: var(--text);
+  background: var(--surface3); border: 1px solid var(--border2);
+  padding: 2px 7px; border-radius: 4px; letter-spacing: 1px;
+}
+.hdr-right { display:flex; align-items:center; gap:12px; }
+.status-pill {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px; color: var(--text);
+  padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border2); background: var(--surface2);
+  max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.status-pill.ready  { border-color: var(--green2); color: var(--green); }
+.status-pill.running{ border-color: var(--accent2); color: var(--accent); animation: pulse-border 1.5s infinite; }
+@keyframes pulse-border { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* ── UPLOAD ZONE ── */
+.upload-screen {
+  min-height: calc(100vh - 54px);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; padding: 40px 20px;
+}
+.upload-card {
+  width: 100%; max-width: 820px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 16px; overflow: hidden;
+}
+.upload-card-header {
+  background: linear-gradient(135deg, var(--surface2) 0%, var(--surface3) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 24px 28px; display: flex; align-items: center; gap: 16px;
+}
+.upload-icon { font-size: 36px; }
+.upload-card-title { font-family:'Bebas Neue',cursive; font-size:28px; letter-spacing:2px; color:var(--text3); line-height:1; }
+.upload-card-sub { font-size:13px; color:var(--text); margin-top:3px; }
+.upload-card-body { padding: 28px; }
+
+/* MULTI-DROP ZONE */
+.drop-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 12px; padding: 36px 24px;
+  text-align: center; cursor: pointer;
+  transition: all 0.2s; position: relative;
+  background: var(--surface2);
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent); background: var(--glow-blue); transform: scale(1.005);
+}
+.drop-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+.drop-icon { font-size:48px; margin-bottom:12px; }
+.drop-title { font-weight:700; font-size:18px; color:var(--text3); margin-bottom:6px; }
+.drop-sub { font-size:13px; color:var(--text); }
+.drop-formats {
+  margin-top:14px; font-family:'IBM Plex Mono',monospace;
+  font-size:11px; color:var(--accent); background:var(--glow-blue);
+  border:1px solid var(--accent2); border-radius:6px; padding:6px 14px; display:inline-block;
+}
+
+/* FILE LIST */
+.file-list {
+  margin-top: 16px; display: flex; flex-direction: column; gap: 6px;
+}
+.file-chip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; background: var(--glow-green);
+  border: 1px solid var(--green2); border-radius: 8px;
+  font-size: 13px;
+}
+.file-chip-name { font-weight:700; color:var(--text3); flex:1; }
+.file-chip-meta { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text); }
+.file-chip-remove {
+  cursor:pointer; color:var(--red); font-size:16px; line-height:1;
+  background:none; border:none; padding:0 4px;
+}
+.file-chip.processing { border-color: var(--accent2); background: var(--glow-blue); }
+.file-chip.error      { border-color: var(--red); background: rgba(248,81,73,0.07); }
+
+/* CONFIG STRIP */
+.config-strip {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 20px; margin-top: 20px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+}
+.cfg-item label { display:block; font-size:11px; color:var(--text); letter-spacing:1px; font-weight:600; margin-bottom:6px; text-transform:uppercase; }
+.cfg-item input, .cfg-item select {
+  width:100%; background:var(--bg); border:1px solid var(--border2);
+  color:var(--text3); font-family:'IBM Plex Mono',monospace;
+  font-size:13px; padding:7px 10px; border-radius:6px; outline:none;
+}
+.cfg-item input:focus, .cfg-item select:focus { border-color: var(--accent); }
+
+/* BUTTONS */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  color:white; border:none; padding:12px 24px;
+  font-family:'Barlow',sans-serif; font-weight:700; font-size:14px;
+  border-radius:8px; cursor:pointer; letter-spacing:0.5px;
+  transition:all 0.2s; width:100%;
+}
+.btn-primary:hover { opacity:0.9; transform:translateY(-1px); box-shadow:0 4px 20px rgba(88,166,255,0.3); }
+.btn-primary:disabled { opacity:0.4; cursor:not-allowed; transform:none; box-shadow:none; }
+.btn-secondary {
+  background:var(--surface3); color:var(--text2);
+  border:1px solid var(--border2); padding:10px 20px;
+  font-family:'Barlow',sans-serif; font-weight:600; font-size:13px;
+  border-radius:7px; cursor:pointer; transition:all 0.15s;
+}
+.btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+
+/* FORMAT BOX */
+.format-box {
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:10px; padding:16px 20px; margin-top:20px;
+}
+.format-title { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--accent); letter-spacing:2px; margin-bottom:10px; font-weight:600; }
+.format-code { font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--green); background:var(--bg); border-radius:6px; padding:10px 14px; line-height:1.7; }
+.format-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+.format-item { display:flex; gap:8px; align-items:flex-start; font-size:12px; color:var(--text); }
+.format-item .fi-key { font-family:'IBM Plex Mono',monospace; color:var(--yellow); font-size:11px; white-space:nowrap; min-width:70px; }
+
+/* PROGRESS */
+.progress-screen {
+  min-height: calc(100vh - 54px);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 20px; padding: 40px;
+}
+.progress-title {
+  font-family:'Bebas Neue',cursive; font-size:32px; letter-spacing:3px;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.progress-bar-wrap { width:100%; max-width:500px; background:var(--surface2); border:1px solid var(--border2); border-radius:8px; height:8px; overflow:hidden; }
+.progress-bar-fill { height:100%; background:linear-gradient(90deg,var(--accent2),var(--accent),var(--purple)); border-radius:8px; transition:width 0.3s ease; background-size:200%; animation:shimmer 1.5s linear infinite; }
+@keyframes shimmer { 0%{background-position:0%} 100%{background-position:200%} }
+.progress-steps { display:flex; flex-direction:column; gap:6px; width:100%; max-width:500px; }
+.p-step { display:flex; align-items:center; gap:10px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text); padding:6px 10px; border-radius:5px; transition:all 0.3s; }
+.p-step.done   { color:var(--green); }
+.p-step.active { color:var(--accent); background:var(--glow-blue); }
+.p-step .step-icon { width:18px; text-align:center; }
+
+/* ── DASHBOARD ── */
+.dashboard { display:none; }
+.dashboard.visible { display:block; }
+
+/* TABS */
+.tab-bar { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--surface); padding:0 24px; overflow-x:auto; }
+.tab-bar::-webkit-scrollbar { height:2px; }
+.tab-item { padding:13px 18px; cursor:pointer; color:var(--text); font-weight:600; font-size:12px; letter-spacing:0.5px; border-bottom:2px solid transparent; white-space:nowrap; transition:all 0.15s; }
+.tab-item:hover { color:var(--text2); }
+.tab-item.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+/* PAGE */
+.page { display:none; padding:20px 24px; }
+.page.active { display:block; }
+
+/* GRIDS */
+.g2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+.g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:14px; }
+.g4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:14px; }
+.g5 { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:14px; }
+.g6 { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:14px; }
+.full { margin-bottom:14px; }
+
+/* PANEL */
+.panel { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.ph { padding:11px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; }
+.ph-title { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--text); font-weight:600; text-transform:uppercase; }
+.pb { padding:14px 16px; }
+
+/* KPI CARDS */
+.kpi {
+  background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;
+  position:relative; overflow:hidden;
+}
+.kpi::after { content:''; position:absolute; top:-30px; right:-30px; width:80px; height:80px; border-radius:50%; background:var(--kpi-glow, rgba(88,166,255,0.07)); }
+.kpi-lbl { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px; }
+.kpi-val { font-family:'Bebas Neue',cursive; font-size:32px; letter-spacing:1px; color:var(--kpi-color, var(--text3)); line-height:1; }
+.kpi-sub { font-size:11px; color:var(--text); margin-top:5px; }
+.kpi-arrow { font-size:18px; position:absolute; top:14px; right:14px; opacity:0.6; }
+
+/* ── STOCK SUMMARY TABLE ── */
+.stock-table-wrap { overflow-x:auto; }
+.stock-table-wrap::-webkit-scrollbar { height:4px; }
+.stock-table-wrap::-webkit-scrollbar-track { background:var(--surface); }
+.stock-table-wrap::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+.skt { width:100%; border-collapse:collapse; font-size:12px; min-width:900px; }
+.skt th {
+  padding:9px 12px; text-align:left;
+  font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px;
+  color:var(--text); font-weight:600; border-bottom:1px solid var(--border);
+  background:var(--surface2); text-transform:uppercase; white-space:nowrap;
+  cursor:pointer; user-select:none;
+}
+.skt th:hover { color:var(--accent); }
+.skt th.sorted-asc::after  { content:' ▲'; color:var(--accent); }
+.skt th.sorted-desc::after { content:' ▼'; color:var(--accent); }
+.skt td { padding:9px 12px; border-bottom:1px solid var(--border); color:var(--text2); white-space:nowrap; }
+.skt tbody tr:last-child td { border-bottom:none; }
+.skt tbody tr:hover td { background:rgba(88,166,255,0.04); cursor:pointer; }
+.skt tbody tr.selected td { background:rgba(88,166,255,0.09); }
+.skt .r { text-align:right; font-family:'IBM Plex Mono',monospace; font-size:11px; }
+.skt .c { text-align:center; }
+.pos { color:var(--green) !important; }
+.neg { color:var(--red) !important; }
+.hi  { color:var(--accent) !important; }
+.wr-a { color:var(--green); }
+.wr-b { color:var(--yellow); }
+.wr-c { color:var(--red); }
+
+/* STOCK NAME CHIP */
+.stock-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  font-weight:700; color:var(--text3); font-size:13px;
+}
+.stock-dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+
+/* TOP3 WINDOWS */
+.win-pills { display:flex; gap:4px; flex-wrap:wrap; }
+.win-pill {
+  font-family:'IBM Plex Mono',monospace; font-size:10px;
+  padding:2px 8px; border-radius:4px; white-space:nowrap;
+}
+.win-pill.am { background:rgba(88,166,255,0.15); color:var(--accent); }
+.win-pill.pm { background:rgba(188,140,255,0.15); color:var(--purple); }
+
+/* TABLE */
+.dt { width:100%; border-collapse:collapse; font-size:12px; }
+.dt th { padding:8px 12px; text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--text); font-weight:600; border-bottom:1px solid var(--border); background:var(--surface2); text-transform:uppercase; white-space:nowrap; }
+.dt td { padding:8px 12px; border-bottom:1px solid var(--border); color:var(--text2); white-space:nowrap; }
+.dt tbody tr:last-child td { border-bottom:none; }
+.dt tbody tr:hover td { background:rgba(88,166,255,0.04); }
+.dt .r { text-align:right; font-family:'IBM Plex Mono',monospace; font-size:11px; }
+
+/* BADGE */
+.bdg { display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; letter-spacing:0.5px; font-family:'IBM Plex Mono',monospace; }
+.bdg-am   { background:rgba(88,166,255,0.15); color:var(--accent); }
+.bdg-pm   { background:rgba(188,140,255,0.15); color:var(--purple); }
+.bdg-best { background:rgba(63,185,80,0.2); color:var(--green); }
+.bdg-warn { background:rgba(248,81,73,0.15); color:var(--red); }
+
+/* CHART WRAP */
+.cw { position:relative; }
+.cw canvas { width:100% !important; }
+
+/* HEATMAP */
+.hm-grid { display:grid; gap:3px; }
+.hm-cell { padding:7px 4px; border-radius:4px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600; cursor:default; transition:transform 0.12s, box-shadow 0.12s; }
+.hm-cell:hover { transform:scale(1.06); box-shadow:0 2px 12px rgba(0,0,0,0.4); z-index:1; position:relative; }
+.hm-lbl { padding:5px 4px; text-align:center; font-size:10px; color:var(--text); font-family:'IBM Plex Mono',monospace; display:flex; align-items:center; justify-content:center; }
+
+/* SESSION BARS */
+.sbar { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.sbar-lbl { width:150px; font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sbar-track { flex:1; height:22px; background:var(--surface2); border-radius:4px; overflow:hidden; }
+.sbar-fill { height:100%; border-radius:4px; display:flex; align-items:center; padding-left:8px; font-size:10px; font-weight:700; min-width:24px; transition:width 0.8s cubic-bezier(.25,.8,.25,1); }
+.sbar-pct { width:44px; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; }
+
+/* INSIGHT CARD */
+.ins { border-left:3px solid var(--accent); background:rgba(88,166,255,0.05); border-radius:0 8px 8px 0; padding:12px 16px; margin-bottom:10px; font-size:12px; line-height:1.6; color:var(--text2); }
+.ins .ins-t { font-weight:700; font-size:12px; color:var(--accent); margin-bottom:4px; letter-spacing:0.5px; }
+.ins.g { border-color:var(--green); background:rgba(63,185,80,0.05); }
+.ins.g .ins-t { color:var(--green); }
+.ins.r { border-color:var(--red); background:rgba(248,81,73,0.05); }
+.ins.r .ins-t { color:var(--red); }
+.ins.y { border-color:var(--yellow); background:rgba(210,153,34,0.05); }
+.ins.y .ins-t { color:var(--yellow); }
+
+/* STOCK DETAIL MODAL/PANEL */
+.stock-detail-overlay {
+  display:none; position:fixed; inset:0; z-index:500;
+  background:rgba(7,9,15,0.85); backdrop-filter:blur(4px);
+}
+.stock-detail-overlay.visible { display:flex; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
+.stock-detail-panel {
+  width:100%; max-width:1100px; min-width:320px;
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:14px; overflow:hidden;
+  animation:slideUp 0.2s ease;
+}
+@keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+.sdp-header {
+  background:linear-gradient(135deg,var(--surface2),var(--surface3));
+  border-bottom:1px solid var(--border);
+  padding:20px 24px; display:flex; align-items:center; justify-content:space-between;
+}
+.sdp-close { cursor:pointer; color:var(--text); font-size:20px; background:none; border:none; line-height:1; }
+.sdp-close:hover { color:var(--text3); }
+.sdp-body { padding:20px 24px; }
+
+.sec-ttl { font-family:'Bebas Neue',cursive; font-size:18px; letter-spacing:2px; color:var(--text3); margin-bottom:12px; display:flex; align-items:center; gap:10px; }
+.sec-ttl::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.scroll { overflow-x:auto; }
+.scroll::-webkit-scrollbar { height:4px; }
+.scroll::-webkit-scrollbar-track { background:var(--surface); }
+.scroll::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+.eq-btns { display:flex; gap:6px; flex-wrap:wrap; }
+.eq-btn { padding:4px 12px; border:1px solid var(--border2); background:transparent; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; border-radius:5px; cursor:pointer; transition:all 0.15s; }
+.eq-btn.active, .eq-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--glow-blue); }
+
+/* DATA STATS */
+.data-stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+.ds-item { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+.ds-lbl { font-size:10px; color:var(--text); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; font-family:'IBM Plex Mono',monospace; }
+.ds-val { font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600; color:var(--text3); }
+
+/* COMPARISON CHART */
+.comparison-notice { padding:14px; font-size:12px; color:var(--text); text-align:center; }
+
+/* SEARCH/FILTER BAR */
+.filter-bar { display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+.filter-bar input, .filter-bar select {
+  background:var(--surface2); border:1px solid var(--border2);
+  color:var(--text2); font-family:'IBM Plex Mono',monospace;
+  font-size:12px; padding:7px 12px; border-radius:7px; outline:none;
+}
+.filter-bar input:focus, .filter-bar select:focus { border-color:var(--accent); }
+.filter-bar input { flex:1; min-width:160px; }
+.results-count { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text); white-space:nowrap; }
+
+/* YEAR TABLE */
+.yr-best td { background:rgba(63,185,80,0.06) !important; }
+.yr-worst td { background:rgba(248,81,73,0.06) !important; }
+
+@media (max-width:768px) {
+  .g4,.g5,.g6 { grid-template-columns:repeat(2,1fr); }
+  .g3 { grid-template-columns:1fr 1fr; }
+  .config-strip { grid-template-columns:1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<header class="hdr">
+  <div class="hdr-brand">
+    <div class="hdr-logo">NIFTY BREAKOUT LAB</div>
+    <span class="hdr-ver">v4.0 MULTI</span>
+  </div>
+  <div class="hdr-right">
+    <div class="status-pill" id="status-pill">Waiting for data...</div>
+    <button class="btn-secondary" id="reset-btn" onclick="resetToUpload()" style="display:none">↩ NEW DATA</button>
+  </div>
+</header>
+
+<!-- ═══════════ UPLOAD SCREEN ═══════════ -->
+<div id="upload-screen" class="upload-screen">
+  <div class="upload-card">
+    <div class="upload-card-header">
+      <div class="upload-icon">📊</div>
+      <div>
+        <div class="upload-card-title">MULTI-STOCK 5-MIN BACKTEST SYSTEM</div>
+        <div class="upload-card-sub">Upload multiple CSV files → Compare all stocks side-by-side in seconds</div>
+      </div>
+    </div>
+    <div class="upload-card-body">
+
+      <!-- DROP ZONE -->
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="csv-input" accept=".csv" multiple onchange="handleFiles(this.files)">
+        <div class="drop-icon">📂</div>
+        <div class="drop-title">Drop multiple CSV files here</div>
+        <div class="drop-sub">or click to select — supports any number of stocks at once</div>
+        <div class="drop-formats">NIFTY50 · BANKNIFTY · TCS · LICI · HDFCBANK · any NSE 5-min CSV</div>
+      </div>
+
+      <!-- FILE LIST -->
+      <div class="file-list" id="file-list"></div>
+
+      <!-- RUN BUTTON -->
+      <div style="margin-top:16px">
+        <button class="btn-primary" id="run-btn" onclick="runAllBacktests()" disabled>
+          ▶ RUN BACKTEST — 0 FILES SELECTED
+        </button>
+      </div>
+
+      <!-- CONFIG -->
+      <div class="config-strip" style="margin-top:16px">
+        <div class="cfg-item">
+          <label>Hold Duration (min)</label>
+          <input type="number" id="cfg-hold" value="20" min="5" max="60">
+        </div>
+        <div class="cfg-item">
+          <label>Min Range (pts)</label>
+          <input type="number" id="cfg-minrange" value="5" min="1" max="100">
+        </div>
+        <div class="cfg-item">
+          <label>Session</label>
+          <select id="cfg-session">
+            <option value="both">AM + PM</option>
+            <option value="AM">AM Only</option>
+            <option value="PM">PM Only</option>
+          </select>
+        </div>
+        <div class="cfg-item">
+          <label>SL Mode</label>
+          <select id="cfg-sl">
+            <option value="none">No Stop Loss</option>
+            <option value="range">Range Opposite</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- FORMAT GUIDE -->
+      <div class="format-box">
+        <div class="format-title">📋 EXPECTED CSV FORMAT (PER FILE)</div>
+        <div class="format-code">date,open,high,low,close,volume
+2022-05-17 09:15:00,872.0,872.0,872.0,872.0,3759243
+2022-05-17 09:20:00,875.5,879.2,871.0,877.3,1250000</div>
+        <div class="format-grid">
+          <div class="format-item"><span class="fi-key">date/datetime</span>YYYY-MM-DD HH:MM:SS (IST)</div>
+          <div class="format-item"><span class="fi-key">open/high/low/close</span>Bar prices</div>
+          <div class="format-item"><span class="fi-key">volume</span>Optional</div>
+          <div class="format-item"><span class="fi-key">filename</span>Used as stock name</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PROGRESS SCREEN ═══════════ -->
+<div id="progress-screen" class="progress-screen" style="display:none">
+  <div class="progress-title" id="prog-title">RUNNING BACKTESTS</div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="prog-bar" style="width:0%"></div>
+  </div>
+  <div class="progress-steps" id="prog-steps"></div>
+</div>
+
+<!-- ═══════════ DASHBOARD ═══════════ -->
+<div id="dashboard" class="dashboard">
+  <div class="tab-bar" id="tab-bar">
+    <div class="tab-item active" onclick="showTab('summary',this)">📋 STOCK SUMMARY</div>
+    <div class="tab-item" onclick="showTab('compare',this)">📊 COMPARE CHARTS</div>
+    <div class="tab-item" onclick="showTab('detail',this)" id="detail-tab" style="display:none">🔍 STOCK DETAIL</div>
+  </div>
+
+  <!-- ── STOCK SUMMARY PAGE ── -->
+  <div class="page active" id="tab-summary">
+
+    <!-- Global KPIs -->
+    <div class="g5" id="global-kpi-row" style="margin-bottom:14px"></div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <input type="text" id="search-box" placeholder="🔍 Search stock..." oninput="filterTable()">
+      <select id="sort-col" onchange="sortTable(this.value)">
+        <option value="stock">Sort: Stock Name</option>
+        <option value="total_pts" selected>Sort: Total Points</option>
+        <option value="wr_pct">Sort: Win Rate</option>
+        <option value="n">Sort: Trade Count</option>
+        <option value="best_window_pts">Sort: Best Window Pts</option>
+      </select>
+      <select id="sort-dir" onchange="sortTable()">
+        <option value="desc" selected>↓ Desc</option>
+        <option value="asc">↑ Asc</option>
+      </select>
+      <span class="results-count" id="results-count"></span>
+    </div>
+
+    <!-- Main Summary Table -->
+    <div class="panel full">
+      <div class="ph">
+        <span class="ph-title">STOCK-WISE SUMMARY — ALL WINDOWS COMBINED</span>
+        <span id="summary-badge" class="bdg bdg-am"></span>
+      </div>
+      <div class="pb stock-table-wrap">
+        <table class="skt" id="summary-table">
+          <thead>
+            <tr>
+              <th onclick="sortTable('stock')">STOCK</th>
+              <th class="r" onclick="sortTable('n')">TOTAL TRADES</th>
+              <th class="r" onclick="sortTable('wr_pct')">WIN RATE</th>
+              <th class="r" onclick="sortTable('total_pts')">TOTAL POINTS</th>
+              <th class="r" onclick="sortTable('best_window_pts')">BEST WINDOW</th>
+              <th onclick="sortTable('top3_label')">TOP 3 BY POINTS</th>
+              <th class="r" onclick="sortTable('best_wr_pct')">BEST WIN RATE</th>
+              <th onclick="sortTable('worst_label')">WEAKEST WINDOW</th>
+            </tr>
+          </thead>
+          <tbody id="summary-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Mini Charts Row -->
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><span class="ph-title">TOTAL POINTS — ALL STOCKS</span></div>
+        <div class="pb cw" style="height:260px"><canvas id="stocks-pts-chart"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-title">WIN RATE % — ALL STOCKS</span></div>
+        <div class="pb cw" style="height:260px"><canvas id="stocks-wr-chart"></canvas></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── COMPARE CHARTS PAGE ── -->
+  <div class="page" id="tab-compare">
+    <div class="g2">
+      <div class="panel">
+        <div class="ph"><span class="ph-title">BEST WINDOW PTS PER STOCK</span></div>
+        <div class="pb cw" style="height:280px"><canvas id="cmp-bestwin-chart"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-title">WIN RATE DISTRIBUTION</span></div>
+        <div class="pb cw" style="height:280px"><canvas id="cmp-wr-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="panel full">
+      <div class="ph"><span class="ph-title">CROSS-STOCK WINDOW COMPARISON — TOTAL POINTS</span></div>
+      <div class="pb cw" style="height:300px"><canvas id="cmp-window-chart"></canvas></div>
+    </div>
+    <div class="panel full">
+      <div class="ph"><span class="ph-title">FULL CROSS-STOCK METRICS TABLE</span></div>
+      <div class="pb scroll"><table class="dt" id="cmp-table"></table></div>
+    </div>
+  </div>
+
+  <!-- ── STOCK DETAIL PAGE ── -->
+  <div class="page" id="tab-detail">
+    <div id="detail-content"></div>
+  </div>
+
+</div><!-- /dashboard -->
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════
+// GLOBALS
+// ═══════════════════════════════════════════════════════
+let ALL_RESULTS = {};   // { stockName: resultObject }
+let FILE_QUEUE  = [];   // Array of {name, file} pending
+let CHARTS = {};
+let CURRENT_STOCK = null;
+
+const AM_WINDOWS = ['09:30','09:45','10:00','10:15','10:30'];
+const PM_WINDOWS = ['14:00','14:15','14:30','14:45','15:00'];
+const ANCHOR_OPEN='09:15', ANCHOR_S1='11:27', ANCHOR_S2='13:27', ANCHOR_S3='15:30';
+const DOW_ORDER  = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+const BEST4      = [['AM','10:15'],['AM','10:30'],['PM','14:15'],['PM','14:45']];
+
+// Stock colors palette
+const STOCK_COLORS = [
+  '#58a6ff','#3fb950','#d29922','#bc8cff','#f85149',
+  '#db6d28','#79c0ff','#56d364','#e3b341','#d2a8ff',
+  '#ffa198','#ffa657','#a5f3fc','#86efac','#fde68a'
+];
+
+function stockColor(idx) { return STOCK_COLORS[idx % STOCK_COLORS.length]; }
+
+// ═══════════════════════════════════════════════════════
+// DRAG & DROP
+// ═══════════════════════════════════════════════════════
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+
+// ═══════════════════════════════════════════════════════
+// FILE MANAGEMENT
+// ═══════════════════════════════════════════════════════
+function handleFiles(files) {
+  for (const file of files) {
+    if (!file.name.endsWith('.csv')) continue;
+    const name = stockNameFromFile(file.name);
+    if (FILE_QUEUE.find(f => f.name === name)) continue; // no dupe
+    FILE_QUEUE.push({ name, file });
+  }
+  renderFileList();
+  updateRunBtn();
+}
+
+function stockNameFromFile(filename) {
+  return filename.replace(/\.csv$/i, '')
+    .replace(/_5minute(data)?$/i, '')
+    .replace(/_5min$/i, '')
+    .replace(/5minutedata$/i, '')
+    .replace(/5minute$/i, '')
+    .toUpperCase();
+}
+
+function removeFile(name) {
+  FILE_QUEUE = FILE_QUEUE.filter(f => f.name !== name);
+  renderFileList();
+  updateRunBtn();
+}
+
+function renderFileList() {
+  const el = document.getElementById('file-list');
+  el.innerHTML = FILE_QUEUE.map(f => `
+    <div class="file-chip" id="chip-${CSS.escape(f.name)}">
+      <span style="font-size:16px">📄</span>
+      <span class="file-chip-name">${f.name}</span>
+      <span class="file-chip-meta">${(f.file.size/1024/1024).toFixed(1)} MB</span>
+      <button class="file-chip-remove" onclick="removeFile('${f.name.replace(/'/g,"\\'")}')" title="Remove">×</button>
+    </div>
+  `).join('');
+}
+
+function updateRunBtn() {
+  const btn = document.getElementById('run-btn');
+  const n = FILE_QUEUE.length;
+  btn.disabled = n === 0;
+  btn.textContent = n === 0
+    ? '▶ RUN BACKTEST — 0 FILES SELECTED'
+    : `▶ RUN BACKTEST — ${n} STOCK${n>1?'S':''} SELECTED`;
+}
+
+// ═══════════════════════════════════════════════════════
+// CSV PARSER (same robust logic as original)
+// ═══════════════════════════════════════════════════════
+function parseCSVText(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
+  if (lines.length < 2) return [];
+
+  const header = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/['"]/g,''));
+  const colMap  = {};
+
+  const dtCandidates = ['datetime','date','timestamp','time','dt'];
+  for (const k of dtCandidates) { const i=header.indexOf(k); if(i>=0){colMap.datetime=i;break;} }
+  if (colMap.datetime === undefined) colMap.datetime = 0;
+
+  const exactMatch = cands => { for (const k of cands){const i=header.indexOf(k);if(i>=0)return i;} return undefined; };
+  colMap.open   = exactMatch(['open','o','Open','OPEN']);
+  colMap.high   = exactMatch(['high','h','High','HIGH']);
+  colMap.low    = exactMatch(['low','l','Low','LOW']);
+  colMap.close  = exactMatch(['close','c','ltp','Close','CLOSE','LTP']);
+  colMap.volume = exactMatch(['volume','vol','v','Volume','VOLUME']);
+
+  if (colMap.close === undefined) return [];
+
+  const rows = [];
+  for (let i=1; i<lines.length; i++) {
+    const line = lines[i].trim(); if(!line) continue;
+    const parts = line.split(',').map(p=>p.trim().replace(/^['"']|['"']$/g,''));
+    if (parts.length < 4) continue;
+
+    const dtRaw = parts[colMap.datetime]||'';
+    if (!dtRaw) continue;
+
+    let dateStr, timeStr;
+    if (dtRaw.includes(' ')) { const si=dtRaw.indexOf(' '); dateStr=dtRaw.slice(0,si); timeStr=dtRaw.slice(si+1,si+6); }
+    else if (dtRaw.includes('T')) { const ti=dtRaw.indexOf('T'); dateStr=dtRaw.slice(0,ti); timeStr=dtRaw.slice(ti+1,ti+6); }
+    else if (dtRaw.includes('-')&&dtRaw.length===10) { dateStr=dtRaw; timeStr='09:15'; }
+    else if (dtRaw.includes('/')) {
+      const p=dtRaw.split('/');
+      if(p[2]&&p[2].includes(' ')){ const[yr,tm]=p[2].split(' '); dateStr=`${yr}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`; timeStr=tm.slice(0,5); }
+      else { dateStr=`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`; timeStr='09:15'; }
+    } else continue;
+
+    if (!dateStr||dateStr.length<8) continue;
+    if (!timeStr||timeStr.length<4) timeStr='09:15';
+
+    const closeVal = parseFloat(parts[colMap.close]);
+    if (isNaN(closeVal)||closeVal<=0) continue;
+
+    const openVal  = colMap.open  !== undefined ? parseFloat(parts[colMap.open])  : closeVal;
+    const highVal  = colMap.high  !== undefined ? parseFloat(parts[colMap.high])  : closeVal;
+    const lowVal   = colMap.low   !== undefined ? parseFloat(parts[colMap.low])   : closeVal;
+    const volVal   = colMap.volume !== undefined ? (parseInt(parts[colMap.volume])||0) : 0;
+
+    rows.push({
+      date: dateStr, time: timeStr,
+      open:  isNaN(openVal)?closeVal:openVal,
+      high:  isNaN(highVal)?closeVal:highVal,
+      low:   isNaN(lowVal)?closeVal:lowVal,
+      close: closeVal, volume: volVal
+    });
+  }
+  return rows;
+}
+
+// ═══════════════════════════════════════════════════════
+// BACKTEST ENGINE
+// ═══════════════════════════════════════════════════════
+function yieldToUI() { return new Promise(r => setTimeout(r, 0)); }
+function delay(ms)   { return new Promise(r => setTimeout(r, ms)); }
+
+async function runBacktestOnData(rawData) {
+  const holdMins      = parseInt(document.getElementById('cfg-hold').value)||20;
+  const minRange      = parseFloat(document.getElementById('cfg-minrange').value)||5;
+  const sessionFilter = document.getElementById('cfg-session').value;
+  const slMode        = document.getElementById('cfg-sl').value;
+
+  // Group by date
+  const byDate = {};
+  for (const row of rawData) {
+    if (!byDate[row.date]) byDate[row.date] = [];
+    byDate[row.date].push(row);
+  }
+  const dates = Object.keys(byDate).sort();
+  await yieldToUI();
+
+  // Session labels
+  const TYPE_MAP = {
+    'U-U-U':'TREND_UP','D-D-D':'TREND_DOWN',
+    'D-D-U':'LATE_REV_UP','U-U-D':'LATE_REV_DOWN',
+    'U-D-D':'REVERSAL_DOWN','D-U-U':'FADE_DOWN',
+    'U-D-U':'FADE_UP','D-U-D':'REVERSAL_DOWN2'
+  };
+  const sessionLabels = [];
+  for (let i=0; i<dates.length; i++) {
+    if (i%200===0) await yieldToUI();
+    const bars = byDate[dates[i]];
+    const closeAt = t => { let last=null; for(const b of bars){if(b.time<=t)last=b.close;else break;} return last; };
+    const pO=closeAt(ANCHOR_OPEN),pS1=closeAt(ANCHOR_S1),pS2=closeAt(ANCHOR_S2),pS3=closeAt(ANCHOR_S3);
+    if(!pO||!pS1||!pS2||!pS3) continue;
+    const s1=pS1>pO?'U':'D', s2=pS2>pS1?'U':'D', s3=pS3>pS1?'U':'D';
+    const pattern=`${s1}-${s2}-${s3}`;
+    sessionLabels.push({date:dates[i],s1,s2,s3,pattern,dayType:TYPE_MAP[pattern]||'OTHER'});
+  }
+  await yieldToUI();
+
+  // Build windows
+  const allWindows = [];
+  if (sessionFilter!=='PM') AM_WINDOWS.forEach(w=>allWindows.push({session:'AM',window:w}));
+  if (sessionFilter!=='AM') PM_WINDOWS.forEach(w=>allWindows.push({session:'PM',window:w}));
+  const holdBars = Math.ceil(holdMins/5);
+
+  // Run strategy
+  const trades = [];
+  for (let di=0; di<dates.length; di++) {
+    if (di%100===0) await yieldToUI();
+    const date=dates[di], bars=byDate[date];
+    const dt=new Date(date+'T00:00:00');
+    const dow=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dt.getDay()];
+    const year=dt.getFullYear(), month=String(dt.getMonth()+1).padStart(2,'0');
+
+    for (const {session,window:win} of allWindows) {
+      let rangeHigh=-Infinity,rangeLow=Infinity,rangeBarsCount=0,afterStart=bars.length;
+      for (let bi=0;bi<bars.length;bi++) {
+        const b=bars[bi];
+        if(b.time<=win){if(b.high>rangeHigh)rangeHigh=b.high;if(b.low<rangeLow)rangeLow=b.low;rangeBarsCount++;}
+        else{if(afterStart===bars.length)afterStart=bi;}
+      }
+      if(rangeBarsCount<2||rangeHigh-rangeLow<minRange||afterStart>=bars.length) continue;
+
+      let direction=null,entryPrice=null,entryBarIdx=-1;
+      for(let bi=afterStart;bi<bars.length;bi++){
+        const b=bars[bi];
+        if(b.high>rangeHigh){direction='LONG';entryPrice=rangeHigh;entryBarIdx=bi;break;}
+        if(b.low<rangeLow){direction='SHORT';entryPrice=rangeLow;entryBarIdx=bi;break;}
+      }
+      if(!direction) continue;
+
+      const exitBarIdx=Math.min(entryBarIdx+holdBars,bars.length-1);
+      const exitPrice=bars[exitBarIdx].close;
+
+      let pnl;
+      if(slMode==='range'){
+        const sl=direction==='LONG'?rangeLow:rangeHigh;
+        let slHit=false;
+        for(let bi=entryBarIdx;bi<=exitBarIdx;bi++){
+          const b=bars[bi];
+          if(direction==='LONG'&&b.low<=sl){slHit=true;break;}
+          if(direction==='SHORT'&&b.high>=sl){slHit=true;break;}
+        }
+        pnl=slHit?(direction==='LONG'?sl-entryPrice:entryPrice-sl):(direction==='LONG'?exitPrice-entryPrice:entryPrice-exitPrice);
+      } else {
+        pnl=direction==='LONG'?exitPrice-entryPrice:entryPrice-exitPrice;
+      }
+
+      trades.push({date,year,month,dow,session,window:win,direction,
+        entryPrice:+entryPrice.toFixed(2),exitPrice:+exitPrice.toFixed(2),
+        pnl:+pnl.toFixed(2),win:pnl>0?1:0,rangeSize:+(rangeHigh-rangeLow).toFixed(2)});
+    }
+  }
+
+  // Metrics
+  const calcMetrics = subset => {
+    const n=subset.length;
+    if(!n) return{n:0,wr_pct:0,avg_pnl:0,avg_win:0,avg_loss:0,wl_ratio:0,total_pts:0};
+    const wins=subset.filter(t=>t.pnl>0),loss=subset.filter(t=>t.pnl<=0);
+    const wr=wins.length/n*100,ap=subset.reduce((s,t)=>s+t.pnl,0)/n;
+    const aw=wins.length?wins.reduce((s,t)=>s+t.pnl,0)/wins.length:0;
+    const al=loss.length?loss.reduce((s,t)=>s+t.pnl,0)/loss.length:0;
+    const wl=al?Math.abs(aw/al):0,tp=subset.reduce((s,t)=>s+t.pnl,0);
+    return{n,wr_pct:+wr.toFixed(1),avg_pnl:+ap.toFixed(1),avg_win:+aw.toFixed(1),avg_loss:+al.toFixed(1),wl_ratio:+wl.toFixed(2),total_pts:+tp.toFixed(0)};
+  };
+
+  const windowMetrics = allWindows.map(({session,window:win}) => ({
+    session,window:win,...calcMetrics(trades.filter(t=>t.session===session&&t.window===win))
+  }));
+
+  const dowMetrics = [];
+  BEST4.forEach(([ses,win])=>DOW_ORDER.forEach(d=>{
+    const sub=trades.filter(t=>t.session===ses&&t.window===win&&t.dow===d);
+    dowMetrics.push({session:ses,window:win,dow:d,...calcMetrics(sub)});
+  }));
+
+  const years=[...new Set(trades.map(t=>t.year))].sort();
+  const yearlyMetrics=[];
+  BEST4.forEach(([ses,win])=>years.forEach(y=>{
+    const sub=trades.filter(t=>t.session===ses&&t.window===win&&t.year===y);
+    yearlyMetrics.push({session:ses,window:win,year:y,...calcMetrics(sub)});
+  }));
+
+  // Equity curves
+  const equityCurves={};
+  BEST4.forEach(([ses,win])=>{
+    const key=`${ses}_${win.replace(':','')}`;
+    const sub=trades.filter(t=>t.session===ses&&t.window===win).sort((a,b)=>a.date.localeCompare(b.date));
+    const monthly={};
+    sub.forEach(t=>{const k=`${t.year}-${t.month}`;if(!monthly[k])monthly[k]=0;monthly[k]+=t.pnl;});
+    let cum=0;
+    equityCurves[key]=Object.entries(monthly).sort().map(([k,v])=>{cum+=v;return{date:k,cum_pnl:+cum.toFixed(0)};});
+  });
+  const combMonthly={};
+  BEST4.forEach(([ses,win])=>trades.filter(t=>t.session===ses&&t.window===win).forEach(t=>{
+    const k=`${t.year}-${t.month}`;if(!combMonthly[k])combMonthly[k]=0;combMonthly[k]+=t.pnl;
+  }));
+  let cum=0;
+  equityCurves['ALL']=Object.entries(combMonthly).sort().map(([k,v])=>{cum+=v;return{date:k,cum_pnl:+cum.toFixed(0)};});
+
+  // Session stats
+  const s1up={},s1dn={};
+  sessionLabels.forEach(sl=>{
+    if(sl.s1==='U')s1up[sl.dayType]=(s1up[sl.dayType]||0)+1;
+    else s1dn[sl.dayType]=(s1dn[sl.dayType]||0)+1;
+  });
+
+  const allDates=[...new Set(rawData.map(r=>r.date))];
+  const minPrice=rawData.reduce((m,r)=>r.close<m?r.close:m,Infinity);
+  const maxPrice=rawData.reduce((m,r)=>r.close>m?r.close:m,-Infinity);
+  const dataStats={
+    totalRows:rawData.length,tradingDays:allDates.length,
+    dateRange:`${rawData[0].date} → ${rawData[rawData.length-1].date}`,
+    minPrice:+minPrice.toFixed(0),maxPrice:+maxPrice.toFixed(0),
+    barsPerDay:+(rawData.length/allDates.length).toFixed(1),
+    sampleRows:rawData.slice(0,20)
+  };
+
+  const overall=calcMetrics(trades);
+  return {
+    tradeSummary:{totalTrades:trades.length,dateRange:dataStats.dateRange,overallWR:overall.wr_pct,totalPnl:overall.total_pts},
+    windowMetrics,dowMetrics,yearlyMetrics,equityCurves,
+    sessionStats:{s1_up:s1up,s1_down:s1dn,totalDays:sessionLabels.length},
+    dataStats,years
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// RUN ALL BACKTESTS
+// ═══════════════════════════════════════════════════════
+async function runAllBacktests() {
+  if (!FILE_QUEUE.length) return;
+
+  const total = FILE_QUEUE.length;
+  showProgress(FILE_QUEUE.map(f => ({ label: `Processing ${f.name}`, key: f.name })));
+
+  ALL_RESULTS = {};
+
+  for (let i=0; i<FILE_QUEUE.length; i++) {
+    const {name, file} = FILE_QUEUE[i];
+    const pct = Math.round((i / total) * 90);
+    setProgress(pct, name);
+    setStatus(`Processing ${name} (${i+1}/${total})...`, 'running');
+
+    try {
+      // Mark chip processing
+      const chipId = `chip-${name}`;
+      const chip = document.getElementById(chipId);
+      if(chip) chip.classList.add('processing');
+
+      const text  = await file.text();
+      const rows  = parseCSVText(text);
+      if (!rows.length) throw new Error('No valid rows');
+
+      const result = await runBacktestOnData(rows);
+      ALL_RESULTS[name] = result;
+
+      if(chip){ chip.classList.remove('processing'); chip.classList.add(''); }
+    } catch(err) {
+      console.error(`Error on ${name}:`, err);
+      const chip = document.getElementById(`chip-${name}`);
+      if(chip) chip.classList.add('error');
+    }
+  }
+
+  setProgress(100, '');
+  await delay(200);
+  showDashboard();
+}
+
+// ═══════════════════════════════════════════════════════
+// PROGRESS UI
+// ═══════════════════════════════════════════════════════
+let progressSteps=[];
+function showProgress(steps){
+  progressSteps=steps;
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('progress-screen').style.display='flex';
+  document.getElementById('prog-steps').innerHTML=steps.map(s=>
+    `<div class="p-step" id="ps-${CSS.escape(s.key)}"><span class="step-icon">○</span>${s.label}</div>`
+  ).join('');
+}
+function setProgress(pct, activeKey){
+  document.getElementById('prog-bar').style.width=pct+'%';
+  progressSteps.forEach(s=>{
+    const el=document.getElementById(`ps-${CSS.escape(s.key)}`);
+    if(!el) return;
+    const idx=progressSteps.findIndex(x=>x.key===s.key);
+    const aidx=progressSteps.findIndex(x=>x.key===activeKey);
+    if(idx<aidx){el.className='p-step done';el.querySelector('.step-icon').textContent='✓';}
+    else if(idx===aidx){el.className='p-step active';el.querySelector('.step-icon').textContent='▶';}
+    else{el.className='p-step';el.querySelector('.step-icon').textContent='○';}
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+function showDashboard() {
+  document.getElementById('progress-screen').style.display='none';
+  document.getElementById('dashboard').classList.add('visible');
+  document.getElementById('reset-btn').style.display='inline-block';
+
+  const stocks = Object.keys(ALL_RESULTS);
+  const totalTrades = stocks.reduce((s,k)=>s+ALL_RESULTS[k].tradeSummary.totalTrades,0);
+  setStatus(`✓ ${stocks.length} stocks · ${totalTrades.toLocaleString()} total trades`, 'ready');
+
+  renderGlobalKPIs();
+  renderSummaryTable();
+  renderSummaryCharts();
+  renderCompareCharts();
+  document.getElementById('summary-badge').textContent = `${stocks.length} STOCKS`;
+}
+
+// ── GLOBAL KPIs ──
+function renderGlobalKPIs() {
+  const stocks = Object.keys(ALL_RESULTS);
+  if (!stocks.length) return;
+
+  const totalTrades = stocks.reduce((s,k)=>s+ALL_RESULTS[k].tradeSummary.totalTrades,0);
+  const avgWR       = (stocks.reduce((s,k)=>s+ALL_RESULTS[k].tradeSummary.overallWR,0)/stocks.length).toFixed(1);
+  const totalPts    = stocks.reduce((s,k)=>s+ALL_RESULTS[k].tradeSummary.totalPnl,0);
+
+  // Best overall stock by total points
+  let bestStock='',bestPts=-Infinity,bestWRStock='',bestWR=0;
+  stocks.forEach(k=>{
+    const r=ALL_RESULTS[k];
+    if(r.tradeSummary.totalPnl>bestPts){bestPts=r.tradeSummary.totalPnl;bestStock=k;}
+    if(r.tradeSummary.overallWR>bestWR){bestWR=r.tradeSummary.overallWR;bestWRStock=k;}
+  });
+
+  document.getElementById('global-kpi-row').innerHTML = `
+    <div class="kpi" style="--kpi-color:var(--accent);--kpi-glow:rgba(88,166,255,0.08)">
+      <div class="kpi-lbl">STOCKS LOADED</div>
+      <div class="kpi-val">${stocks.length}</div>
+      <div class="kpi-sub">${totalTrades.toLocaleString()} total trades</div>
+      <div class="kpi-arrow">📊</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--green);--kpi-glow:rgba(63,185,80,0.08)">
+      <div class="kpi-lbl">AVG WIN RATE</div>
+      <div class="kpi-val">${avgWR}%</div>
+      <div class="kpi-sub">Across all stocks & windows</div>
+      <div class="kpi-arrow">🎯</div>
+    </div>
+    <div class="kpi" style="--kpi-color:${totalPts>=0?'var(--green)':'var(--red)'};--kpi-glow:rgba(63,185,80,0.08)">
+      <div class="kpi-lbl">TOTAL POINTS (ALL)</div>
+      <div class="kpi-val">${totalPts>=0?'+':''}${(+totalPts).toLocaleString()}</div>
+      <div class="kpi-sub">Sum across all stocks</div>
+      <div class="kpi-arrow">💰</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--yellow);--kpi-glow:rgba(210,153,34,0.08)">
+      <div class="kpi-lbl">TOP STOCK (POINTS)</div>
+      <div class="kpi-val" style="font-size:22px">${bestStock}</div>
+      <div class="kpi-sub">${bestPts>=0?'+':''}${(+bestPts).toLocaleString()} pts</div>
+      <div class="kpi-arrow">🏆</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--purple);--kpi-glow:rgba(188,140,255,0.08)">
+      <div class="kpi-lbl">BEST WIN RATE</div>
+      <div class="kpi-val" style="font-size:22px">${bestWRStock}</div>
+      <div class="kpi-sub">${bestWR}% overall WR</div>
+      <div class="kpi-arrow">⭐</div>
+    </div>`;
+}
+
+// ── SUMMARY TABLE ──
+let sortState = { col:'total_pts', dir:'desc' };
+let summaryData = [];
+
+function buildSummaryData() {
+  summaryData = Object.entries(ALL_RESULTS).map(([name, r], idx) => {
+    const wm = r.windowMetrics;
+    const sorted = [...wm].sort((a,b)=>b.total_pts-a.total_pts);
+    const top3   = sorted.slice(0,3);
+    const worst  = sorted[sorted.length-1];
+    const bestWRwin = [...wm].sort((a,b)=>b.wr_pct-a.wr_pct)[0];
+    const bestWin   = sorted[0];
+
+    return {
+      stock: name,
+      color: stockColor(idx),
+      n:     r.tradeSummary.totalTrades,
+      wr_pct: r.tradeSummary.overallWR,
+      total_pts: r.tradeSummary.totalPnl,
+      best_window: bestWin ? `${bestWin.session} ${bestWin.window}` : '—',
+      best_window_pts: bestWin ? bestWin.total_pts : 0,
+      top3_label: top3.map(w=>`${w.session} ${w.window}`).join(' | '),
+      top3_data: top3,
+      best_wr_pct: bestWRwin ? bestWRwin.wr_pct : 0,
+      best_wr_win: bestWRwin ? `${bestWRwin.session} ${bestWRwin.window}` : '—',
+      worst_label: worst ? `${worst.session} ${worst.window}` : '—',
+      worst_pts: worst ? worst.total_pts : 0,
+      worst_wr: worst ? worst.wr_pct : 0,
+      dateRange: r.tradeSummary.dateRange,
+      idx
+    };
+  });
+}
+
+function renderSummaryTable() {
+  buildSummaryData();
+  applySortFilter();
+}
+
+function filterTable() {
+  applySortFilter();
+}
+
+function sortTable(col) {
+  if (col) {
+    if (sortState.col === col) {
+      sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+    } else {
+      sortState.col = col;
+      sortState.dir = 'desc';
+    }
+    document.getElementById('sort-col').value = col;
+    document.getElementById('sort-dir').value = sortState.dir;
+  } else {
+    sortState.dir = document.getElementById('sort-dir').value;
+  }
+  applySortFilter();
+}
+
+function applySortFilter() {
+  const search = document.getElementById('search-box').value.toLowerCase();
+  let data = summaryData.filter(d => d.stock.toLowerCase().includes(search));
+
+  const col = sortState.col, dir = sortState.dir;
+  data.sort((a,b) => {
+    let va=a[col]||0, vb=b[col]||0;
+    if (typeof va==='string') va=va.toLowerCase(),vb=(vb||'').toLowerCase();
+    return dir==='desc' ? (vb>va?1:vb<va?-1:0) : (va>vb?1:va<vb?-1:0);
+  });
+
+  document.getElementById('results-count').textContent = `${data.length} of ${summaryData.length} stocks`;
+
+  // Update sort indicators
+  document.querySelectorAll('.skt th').forEach(th => {
+    th.classList.remove('sorted-asc','sorted-desc');
+  });
+
+  const tbody = document.getElementById('summary-tbody');
+  tbody.innerHTML = data.map(d => {
+    const ptsCls = d.total_pts>=0?'pos':'neg';
+    const bpCls  = d.best_window_pts>=0?'pos':'neg';
+    const woCls  = d.worst_pts>=0?'pos':'neg';
+
+    const top3Pills = d.top3_data.map(w =>
+      `<span class="win-pill ${w.session.toLowerCase()}">${w.session} ${w.window}<br><small>${w.total_pts>=0?'+':''}${(+w.total_pts).toLocaleString()}</small></span>`
+    ).join('');
+
+    return `<tr onclick="openStockDetail('${d.stock}')" title="Click to view full detail">
+      <td>
+        <div class="stock-chip">
+          <span class="stock-dot" style="background:${d.color}"></span>
+          ${d.stock}
+        </div>
+        <div style="font-size:10px;color:var(--text);margin-top:2px;font-family:'IBM Plex Mono',monospace">${d.dateRange}</div>
+      </td>
+      <td class="r">${d.n.toLocaleString()}</td>
+      <td class="r ${wrCls(d.wr_pct)}">${d.wr_pct}%</td>
+      <td class="r ${ptsCls}" style="font-weight:700">${d.total_pts>=0?'+':''}${(+d.total_pts).toLocaleString()}</td>
+      <td class="r">
+        <span class="bdg ${d.best_window.startsWith('AM')?'bdg-am':'bdg-pm'}">${d.best_window}</span><br>
+        <span class="${bpCls}" style="font-family:'IBM Plex Mono',monospace;font-size:11px">${d.best_window_pts>=0?'+':''}${(+d.best_window_pts).toLocaleString()}</span>
+      </td>
+      <td><div class="win-pills">${top3Pills}</div></td>
+      <td class="r">
+        <span class="${wrCls(d.best_wr_pct)}">${d.best_wr_pct}%</span><br>
+        <span style="font-size:10px;color:var(--text)">${d.best_wr_win}</span>
+      </td>
+      <td>
+        <span class="bdg bdg-warn">${d.worst_label}</span><br>
+        <span class="${woCls}" style="font-family:'IBM Plex Mono',monospace;font-size:10px">${d.worst_pts>=0?'+':''}${(+d.worst_pts).toLocaleString()} pts · ${d.worst_wr}% WR</span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── SUMMARY CHARTS ──
+const C = {
+  grid:'#21293d', tick:'#8b949e',
+  font:"'IBM Plex Mono', monospace"
+};
+function mkChart(id,type,data,opts){
+  if(CHARTS[id]) CHARTS[id].destroy();
+  CHARTS[id]=new Chart(document.getElementById(id),{type,data,options:opts});
+  return CHARTS[id];
+}
+
+function renderSummaryCharts() {
+  const stocks = summaryData.map(d=>d.stock);
+  const colors  = summaryData.map(d=>d.color);
+  const pts     = summaryData.map(d=>d.total_pts);
+  const wrs     = summaryData.map(d=>d.wr_pct);
+
+  mkChart('stocks-pts-chart','bar',{
+    labels: stocks,
+    datasets:[{label:'Total Pts',data:pts,backgroundColor:pts.map((v,i)=>v>=0?colors[i]:'rgba(248,81,73,0.7)'),borderRadius:5}]
+  },{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y>=0?'+':''}${c.parsed.y.toLocaleString()} pts`}}},
+    scales:{x:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10},maxRotation:45}},y:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10}}}}
+  });
+
+  mkChart('stocks-wr-chart','bar',{
+    labels: stocks,
+    datasets:[{label:'WR%',data:wrs,backgroundColor:colors,borderRadius:5}]
+  },{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.y}%`}}},
+    scales:{x:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10},maxRotation:45}},y:{min:40,max:70,grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10},callback:v=>v+'%'}}}
+  });
+}
+
+function renderCompareCharts() {
+  const stocks  = summaryData.map(d=>d.stock);
+  const colors  = summaryData.map(d=>d.color);
+
+  // Best window pts per stock
+  mkChart('cmp-bestwin-chart','bar',{
+    labels: stocks,
+    datasets:[{
+      label:'Best Window Pts',
+      data: summaryData.map(d=>d.best_window_pts),
+      backgroundColor: colors,
+      borderRadius:5
+    }]
+  },{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10},maxRotation:45}},y:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10}}}}
+  });
+
+  // Win rate distribution (radar-like bar)
+  mkChart('cmp-wr-chart','bar',{
+    labels: stocks,
+    datasets:[
+      {label:'Overall WR%', data:summaryData.map(d=>d.wr_pct), backgroundColor:colors.map(c=>c+'88'), borderColor:colors, borderWidth:2, borderRadius:3},
+      {label:'Best WR%',    data:summaryData.map(d=>d.best_wr_pct), backgroundColor:'transparent', borderColor:colors, borderWidth:1, borderDash:[4,4], type:'line', pointBackgroundColor:colors, pointRadius:5}
+    ]
+  },{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#c9d1d9',font:{family:C.font,size:10}}}},
+    scales:{x:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10},maxRotation:45}},y:{min:40,max:80,grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10},callback:v=>v+'%'}}}
+  });
+
+  // Cross-stock window comparison
+  const allWins  = [...AM_WINDOWS.map(w=>({session:'AM',window:w})), ...PM_WINDOWS.map(w=>({session:'PM',window:w}))];
+  const winLabels= allWins.map(w=>`${w.session} ${w.window}`);
+
+  const datasets = summaryData.map((d,i) => ({
+    label: d.stock,
+    data: allWins.map(w => {
+      const r=ALL_RESULTS[d.stock];
+      if(!r) return 0;
+      const wm=r.windowMetrics.find(x=>x.session===w.session&&x.window===w.window);
+      return wm?wm.total_pts:0;
+    }),
+    backgroundColor: d.color+'44',
+    borderColor: d.color,
+    borderWidth:2,
+    borderRadius:3,
+    type:'bar'
+  }));
+
+  mkChart('cmp-window-chart','bar',{labels:winLabels, datasets},{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#c9d1d9',font:{family:C.font,size:10}}}},
+    scales:{x:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10}}},y:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10}}}}
+  });
+
+  // Full comparison table
+  renderCmpTable();
+}
+
+function renderCmpTable() {
+  const stocks = Object.keys(ALL_RESULTS);
+  const allWins= [...AM_WINDOWS.map(w=>({session:'AM',window:w})),...PM_WINDOWS.map(w=>({session:'PM',window:w}))];
+
+  const hdr=`<thead><tr>
+    <th>STOCK</th><th class="r">TRADES</th><th class="r">WR%</th>
+    ${allWins.map(w=>`<th class="r">${w.session}<br>${w.window}</th>`).join('')}
+    <th class="r">TOTAL PTS</th>
+  </tr></thead>`;
+
+  const rows=stocks.map((k,i)=>{
+    const r=ALL_RESULTS[k];
+    const wms=allWins.map(w=>{
+      const wm=r.windowMetrics.find(x=>x.session===w.session&&x.window===w.window);
+      return wm?wm.total_pts:0;
+    });
+    return `<tr>
+      <td><span class="stock-chip"><span class="stock-dot" style="background:${stockColor(i)}"></span>${k}</span></td>
+      <td class="r">${r.tradeSummary.totalTrades.toLocaleString()}</td>
+      <td class="r ${wrCls(r.tradeSummary.overallWR)}">${r.tradeSummary.overallWR}%</td>
+      ${wms.map(v=>`<td class="r ${v>=0?'pos':'neg'}">${v>=0?'+':''}${(+v).toLocaleString()}</td>`).join('')}
+      <td class="r" style="font-weight:700"><span class="${r.tradeSummary.totalPnl>=0?'pos':'neg'}">${r.tradeSummary.totalPnl>=0?'+':''}${(+r.tradeSummary.totalPnl).toLocaleString()}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cmp-table').innerHTML = hdr+'<tbody>'+rows+'</tbody>';
+}
+
+// ═══════════════════════════════════════════════════════
+// STOCK DETAIL
+// ═══════════════════════════════════════════════════════
+function openStockDetail(name) {
+  CURRENT_STOCK = name;
+  document.getElementById('detail-tab').style.display='block';
+  showTab('detail', document.getElementById('detail-tab'));
+  renderStockDetail(name);
+}
+
+function renderStockDetail(name) {
+  const r   = ALL_RESULTS[name];
+  if (!r) return;
+
+  const wm  = r.windowMetrics;
+  const sorted = [...wm].sort((a,b)=>b.total_pts-a.total_pts);
+  const top3   = sorted.slice(0,3);
+  const worst  = sorted[sorted.length-1];
+  const bestWR = [...wm].sort((a,b)=>b.wr_pct-a.wr_pct)[0];
+  const s      = r.tradeSummary;
+  const idx    = summaryData.findIndex(d=>d.stock===name);
+  const color  = stockColor(idx>=0?idx:0);
+
+  const fmtPts = v => `<span class="${v>=0?'pos':'neg'}">${v>=0?'+':''}${(+v).toLocaleString()}</span>`;
+  const fmt    = (v,d=1) => v>=0?`+${v.toFixed(d)}`:`${v.toFixed(d)}`;
+
+  document.getElementById('detail-content').innerHTML = `
+    <!-- Stock Header -->
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+      <div style="width:12px;height:12px;border-radius:50%;background:${color}"></div>
+      <div style="font-family:'Bebas Neue',cursive;font-size:28px;letter-spacing:2px;color:var(--text3)">${name}</div>
+      <span class="bdg bdg-am">${s.dateRange}</span>
+      <button class="btn-secondary" onclick="showTab('summary',document.querySelector('.tab-item'))" style="margin-left:auto;padding:7px 14px;font-size:12px">← BACK TO SUMMARY</button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="g5" style="margin-bottom:14px">
+      <div class="kpi" style="--kpi-color:var(--accent)">
+        <div class="kpi-lbl">TOTAL TRADES</div>
+        <div class="kpi-val">${s.totalTrades.toLocaleString()}</div>
+        <div class="kpi-sub">${r.dataStats.tradingDays.toLocaleString()} trading days</div>
+      </div>
+      <div class="kpi" style="--kpi-color:${s.overallWR>=53?'var(--green)':'var(--yellow)'}">
+        <div class="kpi-lbl">OVERALL WIN RATE</div>
+        <div class="kpi-val">${s.overallWR}%</div>
+        <div class="kpi-sub">All windows combined</div>
+      </div>
+      <div class="kpi" style="--kpi-color:${s.totalPnl>=0?'var(--green)':'var(--red)'}">
+        <div class="kpi-lbl">TOTAL POINTS (ALL)</div>
+        <div class="kpi-val">${s.totalPnl>=0?'+':''}${(+s.totalPnl).toLocaleString()}</div>
+        <div class="kpi-sub">Gross · No costs</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--yellow)">
+        <div class="kpi-lbl">BEST WINDOW</div>
+        <div class="kpi-val" style="font-size:20px">${sorted[0]?sorted[0].session+' '+sorted[0].window:'—'}</div>
+        <div class="kpi-sub">${sorted[0]?fmtPts(sorted[0].total_pts)+' pts':''}</div>
+      </div>
+      <div class="kpi" style="--kpi-color:var(--purple)">
+        <div class="kpi-lbl">PRICE RANGE</div>
+        <div class="kpi-val">₹${r.dataStats.maxPrice.toLocaleString()}</div>
+        <div class="kpi-sub">From ₹${r.dataStats.minPrice.toLocaleString()}</div>
+      </div>
+    </div>
+
+    <!-- Insights -->
+    <div class="panel full" style="margin-bottom:14px">
+      <div class="ph"><span class="ph-title">STRATEGY INSIGHTS — ${name}</span></div>
+      <div class="pb">
+        <div class="g2">
+          <div>
+            <div class="ins g"><div class="ins-t">🏆 TOP 3 WINDOWS BY TOTAL POINTS</div>
+              ${top3.map(w=>`<strong>${w.session} ${w.window}</strong> → ${fmtPts(w.total_pts)} pts &nbsp; ${w.wr_pct}% WR`).join('<br>')}</div>
+            <div class="ins"><div class="ins-t">📊 AM vs PM EDGE</div>
+              Best AM: <strong>${wm.filter(w=>w.session==='AM').sort((a,b)=>b.total_pts-a.total_pts)[0]?.window||'—'}</strong> → ${fmtPts(wm.filter(w=>w.session==='AM').sort((a,b)=>b.total_pts-a.total_pts)[0]?.total_pts||0)} pts<br>
+              Best PM: <strong>${wm.filter(w=>w.session==='PM').sort((a,b)=>b.total_pts-a.total_pts)[0]?.window||'—'}</strong> → ${fmtPts(wm.filter(w=>w.session==='PM').sort((a,b)=>b.total_pts-a.total_pts)[0]?.total_pts||0)} pts</div>
+          </div>
+          <div>
+            <div class="ins y"><div class="ins-t">🎯 BEST WIN RATE</div>
+              <strong>${bestWR?bestWR.session+' '+bestWR.window:'—'}</strong> → ${bestWR?.wr_pct||0}% WR<br>
+              Avg Win: +${bestWR?.avg_win||0} · Avg Loss: ${bestWR?.avg_loss||0} · W/L: ${bestWR?.wl_ratio||0}x</div>
+            <div class="ins r"><div class="ins-t">📉 WEAKEST WINDOW — CONSIDER SKIPPING</div>
+              <strong>${worst?worst.session+' '+worst.window:'—'}</strong> → ${fmtPts(worst?.total_pts||0)} pts (${worst?.wr_pct||0}% WR)<br>
+              Avg PnL per trade: ${worst?.avg_pnl||0} pts</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Window Tables -->
+    <div class="g2" style="margin-bottom:14px">
+      <div class="panel">
+        <div class="ph"><span class="ph-title">AM WINDOWS</span><span class="bdg bdg-am">09:30–10:30</span></div>
+        <div class="pb scroll"><table class="dt" id="sd-am-tbl"></table></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-title">PM WINDOWS</span><span class="bdg bdg-pm">14:00–15:00</span></div>
+        <div class="pb scroll"><table class="dt" id="sd-pm-tbl"></table></div>
+      </div>
+    </div>
+
+    <!-- Equity Curve -->
+    <div class="panel full" style="margin-bottom:14px">
+      <div class="ph">
+        <span class="ph-title">CUMULATIVE EQUITY CURVE</span>
+        <div class="eq-btns">
+          <button class="eq-btn active" onclick="switchDetailEq('${name}','AM_1015',this)">AM 10:15</button>
+          <button class="eq-btn" onclick="switchDetailEq('${name}','AM_1030',this)">AM 10:30</button>
+          <button class="eq-btn" onclick="switchDetailEq('${name}','PM_1415',this)">PM 14:15</button>
+          <button class="eq-btn" onclick="switchDetailEq('${name}','PM_1445',this)">PM 14:45</button>
+          <button class="eq-btn" onclick="switchDetailEq('${name}','ALL',this)">ALL COMBINED</button>
+        </div>
+      </div>
+      <div class="pb cw" style="height:320px"><canvas id="sd-eq-chart"></canvas></div>
+    </div>
+
+    <!-- Yearly Table -->
+    <div class="panel full" style="margin-bottom:14px">
+      <div class="ph"><span class="ph-title">YEAR-WISE P&L — BEST 4 WINDOWS</span></div>
+      <div class="pb scroll"><table class="dt" id="sd-yr-tbl"></table></div>
+    </div>
+  `;
+
+  // Render window tables
+  const windowTable = data => {
+    const hdr=`<thead><tr><th>Window</th><th class="r">n</th><th class="r">WR%</th><th class="r">Avg PnL</th><th class="r">Avg Win</th><th class="r">Avg Loss</th><th class="r">W/L</th><th class="r">Total Pts</th></tr></thead>`;
+    const rows=data.map(row=>`<tr>
+      <td><strong>${row.window}</strong></td>
+      <td class="r">${row.n.toLocaleString()}</td>
+      <td class="r ${wrCls(row.wr_pct)}">${row.wr_pct}%</td>
+      <td class="r ${row.avg_pnl>=0?'pos':'neg'}">${fmt(row.avg_pnl)}</td>
+      <td class="r pos">+${row.avg_win}</td>
+      <td class="r neg">${row.avg_loss}</td>
+      <td class="r">${row.wl_ratio}x</td>
+      <td class="r">${fmtPts(row.total_pts)}</td>
+    </tr>`).join('');
+    return hdr+'<tbody>'+rows+'</tbody>';
+  };
+  document.getElementById('sd-am-tbl').innerHTML = windowTable(wm.filter(w=>w.session==='AM'));
+  document.getElementById('sd-pm-tbl').innerHTML = windowTable(wm.filter(w=>w.session==='PM'));
+
+  // Yearly table
+  const ym=r.yearlyMetrics, years=r.years||[...new Set(ym.map(x=>x.year))].sort();
+  const yHdr=`<thead><tr><th>Year</th>${BEST4.map(([s,w])=>`<th class="r">${s} ${w}</th>`).join('')}<th class="r">Combined</th></tr></thead>`;
+  const rowTotals=years.map(y=>BEST4.reduce((sum,[ses,win])=>{const rx=ym.find(x=>x.session===ses&&x.window===win&&x.year===y);return sum+(rx?rx.total_pts:0);},0));
+  const maxTot=Math.max(...rowTotals), minTot=Math.min(...rowTotals);
+  const yRows=years.map((y,i)=>{
+    const vals=BEST4.map(([ses,win])=>{const rx=ym.find(x=>x.session===ses&&x.window===win&&x.year===y);return rx?rx.total_pts:0;});
+    const comb=vals.reduce((s,v)=>s+v,0);
+    const cls=comb===maxTot?'yr-best':comb===minTot?'yr-worst':'';
+    return `<tr class="${cls}"><td><strong>${y}</strong></td>${vals.map(v=>`<td class="r">${fmtPts(v)}</td>`).join('')}<td class="r"><strong>${fmtPts(comb)}</strong></td></tr>`;
+  }).join('');
+  document.getElementById('sd-yr-tbl').innerHTML = yHdr+'<tbody>'+yRows+'</tbody>';
+
+  // Initial equity chart
+  renderDetailEq(name, 'AM_1015');
+}
+
+function switchDetailEq(name, key, btn) {
+  document.querySelectorAll('.eq-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDetailEq(name, key);
+}
+function renderDetailEq(name, key) {
+  const r=ALL_RESULTS[name]; if(!r) return;
+  const curve=r.equityCurves[key]||[];
+  const color=key.startsWith('AM')?'#58a6ff':key==='ALL'?'#3fb950':'#bc8cff';
+  if(CHARTS['sd-eq-chart']) CHARTS['sd-eq-chart'].destroy();
+  CHARTS['sd-eq-chart']=new Chart(document.getElementById('sd-eq-chart'),{
+    type:'line',
+    data:{
+      labels:curve.map(d=>d.date),
+      datasets:[{label:`${name} ${key.replace('_',' ')}`,data:curve.map(d=>d.cum_pnl),borderColor:color,backgroundColor:color+'22',borderWidth:2,pointRadius:0,fill:true,tension:0.3}]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#c9d1d9',font:{family:C.font}}}},
+      scales:{x:{grid:{color:C.grid},ticks:{color:C.tick,maxTicksLimit:24,font:{family:C.font,size:10}}},y:{grid:{color:C.grid},ticks:{color:C.tick,font:{family:C.font,size:10}}}}
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+function setStatus(msg,cls){
+  const el=document.getElementById('status-pill');
+  el.textContent=msg; el.className='status-pill'+(cls?' '+cls:'');
+}
+function showTab(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  el.classList.add('active');
+}
+function wrCls(wr){ return wr>=53?'wr-a':wr>=50?'wr-b':'wr-c'; }
+
+function resetToUpload(){
+  FILE_QUEUE=[]; ALL_RESULTS={}; CURRENT_STOCK=null;
+  Object.values(CHARTS).forEach(c=>{try{c.destroy();}catch(e){}});
+  CHARTS={};
+  document.getElementById('dashboard').classList.remove('visible');
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('reset-btn').style.display='none';
+  document.getElementById('file-list').innerHTML='';
+  document.getElementById('detail-tab').style.display='none';
+  updateRunBtn();
+  setStatus('Waiting for data...','');
+}
+
+window.addEventListener('load',()=>setStatus('Ready — upload multiple CSV files',''));
+</script>
+</body>
+</html>
