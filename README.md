@@ -3,6 +3,22 @@
 A **production-ready, browser-based backtesting tool** for NSE 5-minute OHLCV data.  
 Upload multiple stock CSVs → get full breakout analysis across all time windows — zero installation, runs entirely in the browser.
 
+NIFTY Breakout Lab is a production-ready, browser-based backtesting system 
+for NSE 5-minute OHLCV data. Upload multiple stock CSVs simultaneously and 
+run a first-breakout-of-range strategy across 10 configurable time windows 
+(5 AM + 5 PM) in seconds.
+
+Key outputs per stock:
+- Total trades, overall win rate, gross points
+- Best window by points and by win rate
+- Top 3 windows with individual P&L
+- Weakest window flagged for skipping
+- Cumulative equity curves and year-wise breakdown
+
+Built entirely in vanilla JavaScript — no Python, no server, no dependencies.
+Compatible with Zerodha KiteConnect, Angel One SmartAPI, and any NSE broker 
+historical data export.
+
 ![Version](https://img.shields.io/badge/version-4.0--MULTI-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-NSE%20India-orange)
